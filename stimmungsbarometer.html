@@ -1,0 +1,153 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Stimmungsbarometer</title>
+<style>
+  *{box-sizing:border-box}
+  body{margin:0;font-family:Arial,sans-serif;background:#f7f8fa;color:#222;min-height:100vh;display:flex;align-items:center;justify-content:center}
+  main{width:min(1200px,96vw);padding:28px}
+  h1,h2{text-align:center;margin:0 0 8px}
+  .sub{text-align:center;color:#666;margin:0 0 24px;font-size:1.1rem}
+  .moods{display:grid;grid-template-columns:repeat(5,1fr);gap:14px}
+  button{font:inherit;cursor:pointer;touch-action:manipulation}
+  .mood{min-height:220px;border:3px solid;border-radius:24px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px}
+  .mood:active{transform:scale(.97)}
+  .emoji{font-size:clamp(3.5rem,8vw,6rem)}
+  .label{font-size:clamp(1rem,2vw,1.4rem);font-weight:700}
+  .green{background:#d9f7df;border-color:#63c879}
+  .lightgreen{background:#edf9ef;border-color:#b8dfbd}
+  .yellow{background:#fff6c9;border-color:#e7d15c}
+  .blue{background:#e4f3fb;border-color:#9fcfe8}
+  .red{background:#fbe0e0;border-color:#e58d8d}
+  .actions{text-align:center;margin-top:24px}
+  .action{padding:14px 24px;border:2px solid #777;border-radius:14px;background:white;font-weight:700}
+  .message{text-align:center;height:28px;color:#666;margin-top:12px}
+  #resultsScreen{display:none}
+  .chartWrap{width:min(600px,80vw);margin:20px auto}
+  svg{width:100%;height:auto;display:block}
+  .legend{display:flex;justify-content:center;flex-wrap:wrap;gap:12px;margin-top:15px}
+  .legendItem{padding:10px 16px;border-radius:12px;border:1px solid #ccc;background:white;font-size:1.1rem}
+  .small{font-size:.95rem;color:#666;text-align:center}
+  @media(max-width:800px){
+    main{padding:16px}
+    .moods{gap:6px}
+    .mood{min-height:150px;border-width:2px;border-radius:16px;gap:8px;padding:6px}
+    .emoji{font-size:clamp(2.4rem,9vw,4rem)}
+    .label{font-size:.85rem}
+  }
+</style>
+</head>
+<body>
+<main>
+<section id="voteScreen">
+  <h1>Wie geht es dir heute?</h1>
+  <p class="sub">Tippe auf die Stimmung, die heute zu dir passt.</p>
+  <div class="moods">
+    <button class="mood green" data-mood="Fröhlich"><span class="emoji">😄</span><span class="label">Fröhlich</span></button>
+    <button class="mood lightgreen" data-mood="Gut"><span class="emoji">🙂</span><span class="label">Gut</span></button>
+    <button class="mood yellow" data-mood="Mittel"><span class="emoji">😐</span><span class="label">Mittel</span></button>
+    <button class="mood blue" data-mood="Traurig"><span class="emoji">😢</span><span class="label">Traurig</span></button>
+    <button class="mood red" data-mood="Wütend"><span class="emoji">😡</span><span class="label">Wütend</span></button>
+  </div>
+  <div id="message" class="message"></div>
+  <div class="actions"><button id="showResults" class="action">Ergebnisse anzeigen</button></div>
+</section>
+
+<section id="resultsScreen">
+  <h2>Unsere Klassenstimmung</h2>
+  <p id="total" class="sub"></p>
+  <div class="chartWrap"><svg id="chart" viewBox="0 0 200 200" aria-label="Kreisdiagramm der Klassenstimmung"></svg></div>
+  <div id="legend" class="legend"></div>
+  <div class="actions">
+    <button id="back" class="action">Zurück zur Abstimmung</button>
+    <button id="newDay" class="action">Neuer Tag</button>
+  </div>
+  <p class="small">Die Ergebnisse werden nur auf diesem Gerät während dieser Sitzung gespeichert.</p>
+</section>
+</main>
+
+<script>
+const moods=[
+ {n:"Fröhlich",e:"😄",c:"#63c879"},
+ {n:"Gut",e:"🙂",c:"#b8dfbd"},
+ {n:"Mittel",e:"😐",c:"#e7d15c"},
+ {n:"Traurig",e:"😢",c:"#9fcfe8"},
+ {n:"Wütend",e:"😡",c:"#e58d8d"}
+];
+const count=Object.fromEntries(moods.map(m=>[m.n,0]));
+const voteScreen=document.getElementById("voteScreen");
+const resultsScreen=document.getElementById("resultsScreen");
+const message=document.getElementById("message");
+
+document.querySelectorAll(".mood").forEach(b=>{
+ b.addEventListener("click",()=>{
+   count[b.dataset.mood]++;
+   message.textContent="Danke! 😊";
+   setTimeout(()=>message.textContent="",700);
+ });
+});
+
+function point(angle,r=82){
+ const a=(angle-90)*Math.PI/180;
+ return [100+r*Math.cos(a),100+r*Math.sin(a)];
+}
+function arcPath(start,end){
+ const [x1,y1]=point(end),[x2,y2]=point(start);
+ const large=end-start>180?1:0;
+ return `M100 100 L${x1} ${y1} A82 82 0 ${large} 0 ${x2} ${y2} Z`;
+}
+function render(){
+ const total=Object.values(count).reduce((a,b)=>a+b,0);
+ document.getElementById("total").textContent=total===0?"Noch keine Stimmen.":`${total} ${total===1?"Stimme":"Stimmen"} insgesamt`;
+ const svg=document.getElementById("chart");
+ const legend=document.getElementById("legend");
+ svg.innerHTML=""; legend.innerHTML="";
+ if(!total){
+   svg.innerHTML='<circle cx="100" cy="100" r="82" fill="#eee"/><text x="100" y="104" text-anchor="middle" font-size="9">Noch keine Stimmen</text>';
+   return;
+ }
+ let angle=0;
+ moods.forEach(m=>{
+   const value=count[m.n];
+   if(value>0){
+     const sweep=value/total*360;
+     const p=document.createElementNS("http://www.w3.org/2000/svg","path");
+     p.setAttribute("d",arcPath(angle,angle+sweep));
+     p.setAttribute("fill",m.c);
+     p.setAttribute("stroke","#fff");
+     p.setAttribute("stroke-width","1.5");
+     svg.appendChild(p);
+
+     // Emoji direkt im Segment
+     const mid=angle+sweep/2;
+     const radius=sweep<45?67:52;
+     const [x,y]=point(mid,radius);
+     const t=document.createElementNS("http://www.w3.org/2000/svg","text");
+     t.setAttribute("x",x); t.setAttribute("y",y+6);
+     t.setAttribute("text-anchor","middle");
+     t.setAttribute("font-size",sweep<25?"10":"15");
+     t.textContent=m.e;
+     svg.appendChild(t);
+     angle+=sweep;
+   }
+   const item=document.createElement("div");
+   item.className="legendItem";
+   item.textContent=`${m.e} ${m.n}: ${value}`;
+   legend.appendChild(item);
+ });
+}
+document.getElementById("showResults").addEventListener("click",()=>{
+ render(); voteScreen.style.display="none"; resultsScreen.style.display="block";
+});
+document.getElementById("back").addEventListener("click",()=>{
+ resultsScreen.style.display="none"; voteScreen.style.display="block";
+});
+document.getElementById("newDay").addEventListener("click",()=>{
+ moods.forEach(m=>count[m.n]=0);
+ resultsScreen.style.display="none"; voteScreen.style.display="block"; message.textContent="";
+});
+</script>
+</body>
+</html>
